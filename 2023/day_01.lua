@@ -11,10 +11,11 @@ local function part_1(lines)
   local sum = 0
 
   for _, line in ipairs(lines) do
+    -- Find numerical digits within the line
     local digits = {}
-    for digit in line:gmatch("%d") do
-      digits[#digits + 1] = digit
-    end
+    for digit in line:gmatch("%d") do digits[#digits + 1] = digit end
+
+    -- Construct the number using the first and the last found digits, then add it to the result
     local lineNumber = tonumber(digits[1] .. digits[#digits])
     sum = sum + lineNumber
   end
@@ -26,41 +27,27 @@ local function part_2(lines, digitsMap)
   local sum = 0
 
   for _, line in ipairs(lines) do
-    local firstDigit = { startPos = #line + 1, endPos = #line + 1 }
-    local lastDigit = { startPos = 0, endPos = 0 }
+    local digits = {}
 
+    -- Search for all the possible symbols within this line
     for digitSymbol, digit in pairs(digitsMap) do
-      local nextDigitSymbolSearchPosition = 1
-      while nextDigitSymbolSearchPosition <= #line do
-        local digitStartPos, digitEndPos = line:find(digitSymbol, nextDigitSymbolSearchPosition)
-        if digitStartPos == nil then
-          -- No more matches for this digit symbol on this line, break out of the search loop
-          break
+      local digitSearchPosition = 1
+      while digitSearchPosition <= #line do
+        local digitStartPosition = line:find(digitSymbol, digitSearchPosition)
+        if digitStartPosition ~= nil then
+          -- Save the digit we found in the table of digits for this line, then advance the search position
+          digits[#digits + 1] = { digit = digit, startPosistion = digitStartPosition }
+          digitSearchPosition = digitStartPosition + #digitSymbol
         else
-          local digitModel = {
-            startPos = digitStartPos,
-            endPos = digitStartPos + #digitSymbol - 1,
-            digit = digit,
-            digitSymbol = digitSymbol,
-          }
-
-          -- Check if this digit symbol is positioned before the current first or of it starts in the same position but is shorter
-          if digitStartPos < firstDigit.startPos or (digitStartPos == firstDigit.startPos and #digitSymbol < #firstDigit.digitSymbol) then
-            firstDigit = digitModel
-          end
-
-          -- Check if this digit symbol ends after the current last or if it ends in the same position but is shorter
-          if digitEndPos > lastDigit.endPos or (digitEndPos == lastDigit.endPos and #digitSymbol < #lastDigit.digitSymbol) then
-            lastDigit = digitModel
-          end
-
-          -- Continue the search right after the first digit symbol position just in case the symbol overlaps with itself
-          nextDigitSymbolSearchPosition = digitStartPos + 1
+          -- No more matches for this digit symbol on this line, so we break out of the search loop
+          break
         end
       end
     end
 
-    local lineNumber = tonumber(firstDigit.digit .. lastDigit.digit)
+    -- Construct the number using the first and the last found digits, then add it to the result
+    table.sort(digits, function (first, second) return first.startPosistion < second.startPosistion end)
+    local lineNumber = tonumber(digits[1].digit .. digits[#digits].digit)
     sum = sum + lineNumber
   end
 
