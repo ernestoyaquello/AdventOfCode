@@ -18,16 +18,16 @@ local function find_number_of_matches(cards)
 
     -- Keep indices for both sets and increment them with single steps to find matches without having to nest full loops
     local numberOfMatches = 0
-    local winningNumberIndex = 1
-    local ownedNumberIndex = 1
-    while winningNumberIndex <= #firstSet do
-      while ownedNumberIndex <= #secondSet and secondSet[ownedNumberIndex] <= firstSet[winningNumberIndex] do
-        if secondSet[ownedNumberIndex] == firstSet[winningNumberIndex] then
+    local firstSetIndex = 1
+    local secondSetIndex = 1
+    while firstSetIndex <= #firstSet do
+      while secondSetIndex <= #secondSet and secondSet[secondSetIndex] <= firstSet[firstSetIndex] do
+        if secondSet[secondSetIndex] == firstSet[firstSetIndex] then
           numberOfMatches = numberOfMatches + 1
         end
-        ownedNumberIndex = ownedNumberIndex + 1
+        secondSetIndex = secondSetIndex + 1
       end
-      winningNumberIndex = winningNumberIndex + 1
+      firstSetIndex = firstSetIndex + 1
     end
 
     -- Store the number of matches directly in the card
