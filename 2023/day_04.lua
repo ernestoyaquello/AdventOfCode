@@ -71,19 +71,26 @@ local function part_1(cards)
 end
 
 local function part_2(cards)
-  local newCards = {}
-  for _, card in pairs(cards) do newCards[#newCards + 1] = card end
+  local function count_cards(card)
+    -- If the result is already stored, return it directly
+    if card.cardCount ~= nil then return card.cardCount end
 
-  local cardIndex = 1
-  while cardIndex < #newCards do
-    local card = newCards[cardIndex]
-    for offset = 1, card.numberOfMatches do
-      newCards[#newCards + 1] = cards[newCards[card.cardNumber + offset].cardNumber]
+    -- Recursively get the total number of cards associated with this one
+    local cardCount = 1
+    for cardNumberOffset = 1, card.numberOfMatches do
+      cardCount = cardCount + count_cards(cards[card.cardNumber + cardNumberOffset])
     end
-    cardIndex = cardIndex + 1
+
+    -- Store the result to avoid doing the same calculations again if this card comes up once more
+    card.cardCount = cardCount
+    return cardCount
   end
 
-  return #newCards
+  local numberOfCards = 0
+  for _, card in pairs(cards) do
+    numberOfCards = numberOfCards + count_cards(card)
+  end
+  return numberOfCards
 end
 
 local cards = read_cards(read_lines(problemNumber))
