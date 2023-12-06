@@ -31,19 +31,19 @@ local function read_as_single_game(games)
   return { time = tonumber(time), distance = tonumber(distance) }
 end
 
-local function count_possible_victories(game, speed)
-  local possibleVictories = 0
-  for pressTime = 0, game.time do
-    local distance = (game.time - pressTime) * (speed * pressTime)
-    if distance > game.distance then possibleVictories = possibleVictories + 1 end
-  end
-  return possibleVictories
+local function count_possible_victories(game)
+  -- DISTANCE = (TIME - pressTime) * pressTime == (pressTime * pressTime) - (TIME * pressTime) + DISTANCE = 0
+  -- pressTime = (TIME +/- sqrt((TIME * TIME) - (4 * DISTANCE))) / 2
+  local cuadratiqSquare = math.sqrt((game.time * game.time) - (4 * game.distance))
+  local minPressTimeToBeatRecord = math.floor((game.time - cuadratiqSquare) / 2) + 1
+  local maxPressTimeToBeatRecord = math.ceil((game.time + cuadratiqSquare) / 2) - 1
+  return maxPressTimeToBeatRecord - minPressTimeToBeatRecord + 1
 end
 
 local function part_1(games)
   local result = nil
   for _, game in ipairs(games) do
-    local possibleVictories = count_possible_victories(game, 1)
+    local possibleVictories = count_possible_victories(game)
     if result == nil then result = possibleVictories else result = result * possibleVictories end
   end
   return result
@@ -51,7 +51,7 @@ end
 
 local function part_2(games)
   local game = read_as_single_game(games)
-  return count_possible_victories(game, 1)
+  return count_possible_victories(game)
 end
 
 local games = read_games(read_lines(problemNumber))
