@@ -13,3 +13,20 @@ function read_lines(problemNumber, includeBlankLines)
   file:close()
   return lines
 end
+
+function read_sequences(problemNumber, valuesAreNumbers)
+  local sequences = {}
+
+  local lines = read_lines(problemNumber)
+  for _, line in ipairs(lines) do
+    local sequence = {}
+    line = line .. " "
+    for value in line:gmatch("([^ ]*) +") do
+      if valuesAreNumbers then value = tonumber(value) end
+      sequence[#sequence + 1] = value
+    end
+    sequences[#sequences + 1] = sequence
+  end
+
+  return sequences
+end
