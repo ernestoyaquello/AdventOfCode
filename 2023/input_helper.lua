@@ -14,14 +14,15 @@ function read_lines(problemNumber, includeBlankLines)
   return lines
 end
 
-function read_sequences(problemNumber, valuesAreNumbers)
+function read_sequences(problemNumber, valuesAreNumbers, separator)
   local sequences = {}
 
+  if separator == nil then separator = " " end
   local lines = read_lines(problemNumber)
   for _, line in ipairs(lines) do
     local sequence = {}
-    line = line .. " "
-    for value in line:gmatch("([^ ]*) +") do
+    line = line .. separator
+    for value in line:gmatch("([^" .. separator .. "]*)" .. separator .. "+") do
       if valuesAreNumbers then value = tonumber(value) end
       sequence[#sequence + 1] = value
     end
