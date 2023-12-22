@@ -2,223 +2,177 @@ require "input_helper"
 
 local problemNumber = 17
 
-local function get_node_key(nodeInfo)
-  return "position=" .. nodeInfo.position
-    .. ", up=" .. nodeInfo.connections.up
-    .. ", right=" .. nodeInfo.connections.right
-    .. ", down=" .. nodeInfo.connections.down
-    .. ", left=" .. nodeInfo.connections.left
+-- Generates a small table representing a coordinate, making sure that coordinates with the same
+-- content (x, y) are actually the same instance. That way, we can compare them properly.
+local function coordinate_generator()
+  local coordinates = {}
+  return function(x, y)
+    if coordinates[x] == nil then coordinates[x] = {} end
+    if coordinates[x][y] == nil then coordinates[x][y] = { x = x, y = y } end
+    return coordinates[x][y]
+  end
 end
 
-local function confine_node_to_map_limits(map, nodeInfo)
-    -- Limit the connections to account for the borders of the map
-    local row = math.floor(nodeInfo.position / map.width) + 1
-    local column = (nodeInfo.position % map.width) + 1
-    nodeInfo.connections.up = math.min(nodeInfo.connections.up, row - 1)
-    nodeInfo.connections.right = math.min(nodeInfo.connections.right, map.width - column)
-    nodeInfo.connections.down = math.min(nodeInfo.connections.down, map.height - row)
-    nodeInfo.connections.left = math.min(nodeInfo.connections.left, column - 1)
+local function calculate_average_heat_loss(map)
+  local totalHeatLoss = 0
+  local totalNodes = 0
+  for _, node in pairs(map.nodes) do
+    totalHeatLoss = totalHeatLoss + node.heatLoss
+    totalNodes = totalNodes + 1
+  end
+  return totalHeatLoss / totalNodes
 end
 
-local function find_neighbour_nodes(map, nodeInfo, minInitialMoves, maxRepeatedMoves)
-  local extraNodes = {} -- the ones whose neighbours need to be found too
-  nodeInfo.neighbours = {}
+local function read_map_info(lines, coordGen)
+  local map = { width = #lines[1], height = #lines, nodes = {} }
 
-  --[[
-    We create new virtual nodes based on the current one and the possible moves from it.
-    Basically, for each position, instead of having just one node, we have multiple ones,
-    and they are different because of how the node was entered, which in turn determines
-    where we can go from it. In a way, we are simply visualizing the network of nodes
-    differently, with extra nodes and connections that aren't there in plain sight, but
-    that make sense logically. This probably sounds like nonsense, but I know what I mean.
-    
-    This works, and I even thought that it was kinda clever when I envisioned it, but it
-    is veeeery slow with the actual input because that input is absurdly huge. Thus, this
-    was just a terrible idea, which I think becomes apparent when looking at this awful
-    code, as it is a massive mess that I barely understand, especially after adapting it
-    for part 2, which changed the requirements in a way I didn't see coming. In any case,
-    I committed to this idea for some reason (partially because of stubborness, but also
-    because I couldn't be arsed to start over just to solve this whole problem properly),
-    so I simply left the script running until I finally got the results. It's dirty and
-    ugly work, but a star is a star.
-
-    CORRECTION: This gives the right result for all the example inputs, but not for the
-    real one – I've discovered this after a long, long wait. Back to the drawing board... 😥
-  ]]
-  for direction, numberOfMoves in pairs(nodeInfo.connections) do
-    local effectiveMinInitialMoves = minInitialMoves
-    if nodeInfo.completedDirection == direction then effectiveMinInitialMoves = 1 end
-
-    if numberOfMoves >= effectiveMinInitialMoves then
-      local directionOffset = 0
-      if direction == "up" then directionOffset = -map.width
-      elseif direction == "right" then directionOffset = 1
-      elseif direction == "down" then directionOffset = map.width
-      elseif direction == "left" then directionOffset = -1 end
-
-      local lastNeighbourNodeInfo = nodeInfo
-      local neighbourNodeInfo = { position = nodeInfo.position, connections = { up = 0, right = 0, down = 0, left = 0 }, neighbours = {} }
-      neighbourNodeInfo.connections[direction] = numberOfMoves
-
-      for moveNumber = 1, effectiveMinInitialMoves do
-        neighbourNodeInfo.connections = { up = neighbourNodeInfo.connections.up, right = neighbourNodeInfo.connections.right, down = neighbourNodeInfo.connections.down, left = neighbourNodeInfo.connections.left }
-        neighbourNodeInfo.position = neighbourNodeInfo.position + directionOffset
-        if direction == "up" then
-          neighbourNodeInfo.connections.up = neighbourNodeInfo.connections.up - 1
-          neighbourNodeInfo.connections.down = 0
-        elseif direction == "right" then
-          neighbourNodeInfo.connections.right = neighbourNodeInfo.connections.right - 1
-          neighbourNodeInfo.connections.left = 0
-        elseif direction == "down" then
-          neighbourNodeInfo.connections.down = neighbourNodeInfo.connections.down - 1
-          neighbourNodeInfo.connections.up = 0
-        elseif direction == "left" then
-          neighbourNodeInfo.connections.left = neighbourNodeInfo.connections.left - 1
-          neighbourNodeInfo.connections.right = 0
-        end
-
-        if moveNumber == effectiveMinInitialMoves then
-          for neighbourDirection, _ in pairs(neighbourNodeInfo.connections) do
-            if neighbourDirection ~= direction then
-              neighbourNodeInfo.connections[neighbourDirection] = maxRepeatedMoves
-            end
-          end
-          if direction == "up" then neighbourNodeInfo.connections.down = 0
-          elseif direction == "right" then neighbourNodeInfo.connections.left = 0
-          elseif direction == "down" then neighbourNodeInfo.connections.up = 0
-          elseif direction == "left" then neighbourNodeInfo.connections.right = 0
-          end
-        end
-
-        confine_node_to_map_limits(map, neighbourNodeInfo)
-        neighbourNodeInfo.key = get_node_key(neighbourNodeInfo)
-        lastNeighbourNodeInfo.neighbours[#lastNeighbourNodeInfo.neighbours + 1] = neighbourNodeInfo
-
-        if moveNumber == effectiveMinInitialMoves then
-          extraNodes[#extraNodes + 1] = neighbourNodeInfo
-          neighbourNodeInfo.completedDirection = direction
-        else
-          map.nodes[neighbourNodeInfo.key] = neighbourNodeInfo
-        end
-
-        lastNeighbourNodeInfo = neighbourNodeInfo
-        neighbourNodeInfo = { position = neighbourNodeInfo.position, connections = neighbourNodeInfo.connections, neighbours = {} }
-      end
+  -- Read nodes
+  for y = 1, map.height do
+    for x = 1, map.width do
+      local heatLoss = tonumber(lines[y]:sub(x, x))
+      local position = coordGen(x, y)
+      map.nodes[position] = { position = position, heatLoss = heatLoss, connections = {} }
     end
   end
 
-  return extraNodes
-end
+  -- Define the connections between adjacent nodes
+  local destinationPosition = coordGen(map.width, map.height)
+  local averageHeatLoss = calculate_average_heat_loss(map)
+  for position, node in pairs(map.nodes) do
+    local adjacentOffsets = {}
+    if position.y > 1 then adjacentOffsets[#adjacentOffsets + 1] = { direction = "up", x = 0, y = -1 } end
+    if position.x < map.width then adjacentOffsets[#adjacentOffsets + 1] = { direction = "right", x = 1, y = 0 } end
+    if position.y < map.height then adjacentOffsets[#adjacentOffsets + 1] = { direction = "down", x = 0, y = 1 } end
+    if position.x > 1 then adjacentOffsets[#adjacentOffsets + 1] = { direction = "left", x = -1, y = 0 } end
 
-local function add_node_and_find_neighbours(map, nodeInfo, minInitialMoves, maxRepeatedMoves)
-  local extraNodesToAdd = {}
-
-  -- Add the node to the collection of nodes, unless it is already there, in which case we just leave
-  nodeInfo.key = get_node_key(nodeInfo)
-  if map.nodes[nodeInfo.key] == nil then
-    map.nodes[nodeInfo.key] = nodeInfo
-    extraNodesToAdd = find_neighbour_nodes(map, nodeInfo, minInitialMoves, maxRepeatedMoves)
-  end
-
-  return extraNodesToAdd
-end
-
-local function read_map_info(lines, minInitialMoves, maxRepeatedMoves)
-  local map = {
-    width = #lines[1],
-    height = #lines,
-    nodes = {},
-    heatLosses = {},
-    firstNodeInfo = nil,
-  }
-
-  for row = 1, map.height do
-    for column = 1, map.width do
-      local heatLoss = tonumber(lines[row]:sub(column, column))
-      local position = ((row - 1) * map.width) + (column - 1)
-      map.heatLosses[position] = heatLoss
+    for _, adjacentOffset in ipairs(adjacentOffsets) do
+      node.connections[#node.connections + 1] = {
+        direction = adjacentOffset.direction,
+        node = map.nodes[coordGen(position.x + adjacentOffset.x, position.y + adjacentOffset.y)]
+      }
     end
-  end
 
-  -- Create the network of connected nodes iteratively, starting with the first one
-  map.firstNodeInfo = {
-    position = 0,
-    connections = { up = maxRepeatedMoves, right = maxRepeatedMoves, down = maxRepeatedMoves, left = maxRepeatedMoves },
-  }
-  confine_node_to_map_limits(map, map.firstNodeInfo)
-  map.firstNodeInfo.key = get_node_key(map.firstNodeInfo)
-  local extraNodesToAdd = add_node_and_find_neighbours(map, map.firstNodeInfo, minInitialMoves, maxRepeatedMoves)
-  while #extraNodesToAdd > 0 do
-    local newExtraNodesToAdd = {}
-    for _, extraNodeToAdd in ipairs(extraNodesToAdd) do
-      local extraExtraNodesToAdd = add_node_and_find_neighbours(map, extraNodeToAdd, minInitialMoves, maxRepeatedMoves)
-      for _, extraExtraNodeToAdd in ipairs(extraExtraNodesToAdd) do
-        newExtraNodesToAdd[#newExtraNodesToAdd + 1] = extraExtraNodeToAdd
-      end
-    end
-    extraNodesToAdd = newExtraNodesToAdd
+    -- Sort connections from most likely to be favourable to least
+    table.sort(node.connections, function (first, second)
+      local firstManhattanDistance = (destinationPosition.x - first.node.position.x) + (destinationPosition.y - first.node.position.y)
+      local firstHeatLoss = first.node.heatLoss + (firstManhattanDistance * averageHeatLoss)
+
+      local secondManhattanDistance = (destinationPosition.x - second.node.position.x) + (destinationPosition.y - second.node.position.y)
+      local secondHeatLoss = second.node.heatLoss + (secondManhattanDistance * averageHeatLoss)
+
+      return firstHeatLoss < secondHeatLoss
+    end)
   end
 
   return map
 end
 
-local function dijkstra_me_this(map, firstNodeInfo, destinationPosition)
-  local path = {}
-  local heatLosses = {} -- i.e., distances
-  local notVisited = {}
-
-  for nodeKey, nodeInfo in pairs(map.nodes) do
-    heatLosses[nodeKey] = math.maxinteger
-    notVisited[#notVisited + 1] = nodeInfo
-  end
-  heatLosses[firstNodeInfo.key] = 0
-
-  while #notVisited > 0 do
-    print(#notVisited .. " remaining...")
-
-    -- Find the closest not visited node
-    local currentNode = nil
-    local currentNodeIndex = nil
-    local destinationFullyVisited = false
-    for notVisitedNodeIndex, notVisitedNodeInfo in ipairs(notVisited) do
-      if currentNode == nil or heatLosses[notVisitedNodeInfo.key] < heatLosses[currentNode.key] then
-        currentNode = notVisitedNodeInfo
-        currentNodeIndex = notVisitedNodeIndex
-      end
-      destinationFullyVisited = destinationFullyVisited or notVisitedNodeInfo.position == destinationPosition
-    end
-
-    -- All the nodes located at the destination position have been visited already, no need to keep looking
-    if not destinationFullyVisited then break end
-
-    -- Remove the node we are visiting now from the table of not visited nodes
-    table.remove(notVisited, currentNodeIndex)
-
-    -- For each neighbour, see if the heat loss would be lower this way and adjust the values appropriately if so
-    for _, neighbourNode in ipairs(currentNode.neighbours) do
-      local candidateDistance = heatLosses[currentNode.key] + map.heatLosses[neighbourNode.position]
-      if candidateDistance < heatLosses[neighbourNode.key] then
-        heatLosses[neighbourNode.key] = candidateDistance
-        path[neighbourNode.key] = currentNode.key
-      end
+local function is_valid_connection(candidateConnection, path, maxConsecutive)
+  local isValid = false
+  for i = #path - (maxConsecutive - 1), #path do
+    if path[i] == nil or path[i].direction ~= candidateConnection.direction then
+      isValid = true
+      break
     end
   end
-
-  return path, heatLosses
+  return isValid
 end
 
-local function resolve(map)
-  local destinationPosition = (map.width * map.height) - 1
-  local _, heatLosses = dijkstra_me_this(map, map.firstNodeInfo, destinationPosition)
+local function find_heat_loss_in_best_path(map, destinationPosition, coordGen, maxConsecutive, minMovesForNewDirection)
+  local cache = {}
+  local currentMinTotalHeatLoss = 1500
 
-  local minHeatLoss = math.maxinteger
-  for nodeKey, nodeHeatLoss in pairs(heatLosses) do
-    if map.nodes[nodeKey].position == destinationPosition and nodeHeatLoss < minHeatLoss then
-      minHeatLoss = nodeHeatLoss
+  -- This should have been done with A-star or whatever, but this deeptracking does the work (slowly, but still), so whatever
+  local function find_min_heat_loss_recursively(currentPath, currentHeatLoss, currentNodeInfo)
+    local consecutivesBefore = 0
+    for i = #currentPath, #currentPath - (maxConsecutive - 1), -1 do
+      if currentPath[i] == nil or currentPath[i].direction ~= currentNodeInfo.direction then
+        break
+      end
+      consecutivesBefore = consecutivesBefore + 1
     end
+    local cacheKey = "x=" .. currentNodeInfo.node.position.x .. ",y=" .. currentNodeInfo.node.position.y
+    if currentNodeInfo.direction ~= nil then
+      cacheKey = cacheKey .. ", " .. currentNodeInfo.direction .. ", " .. consecutivesBefore
+    end
+
+    if cache[cacheKey] == nil or cache[cacheKey].currentHeatLoss > currentHeatLoss then
+      local minHeatLossAfterCurrentNode = math.maxinteger
+
+      currentPath[#currentPath + 1] = currentNodeInfo
+      for _, potentialConnectionInfo in ipairs(currentNodeInfo.node.connections) do
+        local canMoveToConnection = not (currentNodeInfo.direction == "up" and potentialConnectionInfo.direction == "down")
+          and not (currentNodeInfo.direction == "right" and potentialConnectionInfo.direction == "left")
+          and not (currentNodeInfo.direction == "down" and potentialConnectionInfo.direction == "up")
+          and not (currentNodeInfo.direction == "left" and potentialConnectionInfo.direction == "right")
+        local potentialConnectionHeatLoss = potentialConnectionInfo.node.heatLoss
+
+        -- If there is a minimum initial jump (minMovesForNewDirection), we make sure to enforce it
+        if canMoveToConnection and currentNodeInfo.direction ~= potentialConnectionInfo.direction and minMovesForNewDirection > 1 then
+          local connectionDiffX = potentialConnectionInfo.node.position.x - currentNodeInfo.node.position.x
+          local connectionDiffY = potentialConnectionInfo.node.position.y - currentNodeInfo.node.position.y
+          local finalConnectionPosition = coordGen(
+            currentNodeInfo.node.position.x + (connectionDiffX * minMovesForNewDirection),
+            currentNodeInfo.node.position.y + (connectionDiffY * minMovesForNewDirection)
+          )
+          if map.nodes[finalConnectionPosition] ~= nil then
+            local nextConnectionPosition = potentialConnectionInfo.node.position
+            potentialConnectionHeatLoss = 0
+            for _ = 1, minMovesForNewDirection - 1 do
+              currentPath[#currentPath + 1] = { node = map.nodes[nextConnectionPosition], direction = potentialConnectionInfo.direction }
+              potentialConnectionHeatLoss = potentialConnectionHeatLoss + map.nodes[nextConnectionPosition].heatLoss
+              nextConnectionPosition = coordGen(nextConnectionPosition.x + connectionDiffX, nextConnectionPosition.y + connectionDiffY)
+            end
+            potentialConnectionInfo = { node = map.nodes[nextConnectionPosition], direction = potentialConnectionInfo.direction }
+            potentialConnectionHeatLoss = potentialConnectionHeatLoss + map.nodes[nextConnectionPosition].heatLoss
+          else
+            canMoveToConnection = false
+          end
+        end
+
+        if canMoveToConnection then
+          if is_valid_connection(potentialConnectionInfo, currentPath, maxConsecutive) then
+            if potentialConnectionInfo.node.position ~= destinationPosition then
+              -- Calculate the minimum heat loss to have from here, assuming every node along the way will have a heat loss of only 1 (there are no zeroes in the input)
+              local manhattanDistance = (destinationPosition.y - potentialConnectionInfo.node.position.y) + (destinationPosition.x - potentialConnectionInfo.node.position.x)
+              local minHeatLossPossible = currentHeatLoss + potentialConnectionHeatLoss + manhattanDistance
+              if minHeatLossPossible < currentMinTotalHeatLoss then
+                local heatLossAfterPotentialConnection = find_min_heat_loss_recursively(currentPath, currentHeatLoss + potentialConnectionHeatLoss, potentialConnectionInfo)
+                if heatLossAfterPotentialConnection < math.maxinteger then
+                  minHeatLossAfterCurrentNode = math.min(minHeatLossAfterCurrentNode, potentialConnectionHeatLoss + heatLossAfterPotentialConnection)
+                end
+              end
+            else
+              minHeatLossAfterCurrentNode = math.min(minHeatLossAfterCurrentNode, potentialConnectionHeatLoss)
+              currentMinTotalHeatLoss = math.min(currentMinTotalHeatLoss, currentHeatLoss + potentialConnectionHeatLoss)
+            end
+          end
+
+          -- Restore the path after handling the minimum initial jump
+          if currentNodeInfo.direction ~= potentialConnectionInfo.direction and minMovesForNewDirection > 1 then
+            for _ = 1, minMovesForNewDirection - 1 do
+              table.remove(currentPath, #currentPath)
+            end
+          end
+        end
+      end
+      table.remove(currentPath, #currentPath)
+
+      cache[cacheKey] = { result = minHeatLossAfterCurrentNode, currentHeatLoss = currentHeatLoss }
+    end
+
+    return cache[cacheKey].result
   end
-  return minHeatLoss
+
+  return find_min_heat_loss_recursively({}, 0, { node = map.nodes[coordGen(1, 1)], direction = nil })
 end
 
-print("part 1: " .. resolve(read_map_info(read_lines(problemNumber), 1, 3)))
-print("part 2: " .. resolve(read_map_info(read_lines(problemNumber), 4, 10)))
+local function resolve(lines, maxConsecutive, minMovesForNewDirection)
+  local coordGen = coordinate_generator()
+  local map = read_map_info(lines, coordGen)
+  local destinationPosition = coordGen(map.width, map.height)
+  return find_heat_loss_in_best_path(map, destinationPosition, coordGen, maxConsecutive, minMovesForNewDirection)
+end
+
+print("part 1: " .. resolve(read_lines(problemNumber), 3, 1))
+print("part 2: " .. resolve(read_lines(problemNumber), 10, 4))
