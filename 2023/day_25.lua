@@ -2,7 +2,7 @@ require "input_helper"
 
 local problemNumber = 25
 
-local function find_length_of_fastest_route_to_self(graph, startComponent, mandatoryNextComponent)
+local function find_length_of_fastest_route_to_self(graph, firstComponent, secondComponent)
   local distances = {}
   local notVisited = {}
 
@@ -56,8 +56,8 @@ local function find_length_of_fastest_route_to_self(graph, startComponent, manda
     end
   end
 
-  dijkstra_me_this(mandatoryNextComponent, startComponent, { mandatoryNextComponent, startComponent })
-  return distances[startComponent]
+  dijkstra_me_this(secondComponent, firstComponent, { secondComponent, firstComponent })
+  return distances[firstComponent]
 end
 
 local function read_components(lines)
@@ -94,10 +94,9 @@ local function read_components(lines)
 
   local connections = {}
   for _, connection in pairs(connectionsSet) do
-    -- For each connection, find how difficult it is to get back to the initial component
-    local firstRouteLength = find_length_of_fastest_route_to_self(graph, connection[1], connection[2])
-    local secondRouteLength = find_length_of_fastest_route_to_self(graph, connection[2], connection[1])
-    local routeLength = math.min(firstRouteLength, secondRouteLength)
+    -- For each connection, traverse it and find out how hard it is to get back to the initial component without
+    -- crossing back through the connection again.
+    local routeLength = find_length_of_fastest_route_to_self(graph, connection[1], connection[2])
     connections[#connections + 1] = { connection[1], connection[2], routeLength }
   end
 
