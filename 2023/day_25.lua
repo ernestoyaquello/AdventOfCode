@@ -2,9 +2,67 @@ require "input_helper"
 
 local problemNumber = 25
 
+local function find_length_of_fastest_route_to_self(graph, startComponent, mandatoryNextComponent)
+  local distances = {}
+  local notVisited = {}
+
+  local function dijkstra_me_this(startComponent, destinationComponent, forbiddenConnection)
+    for component in pairs(graph) do
+      distances[component] = math.maxinteger
+      notVisited[#notVisited + 1] = component
+    end
+    distances[startComponent] = 0
+  
+    while #notVisited > 0 do
+      -- Find the closest not visited component
+      local currentComponent = nil
+      local currentComponentIndex = nil
+      local destinationVisited = false
+      for notVisitedComponentIndex, notVisitedComponent in ipairs(notVisited) do
+        if currentComponent == nil or distances[notVisitedComponent] < distances[currentComponent] then
+          currentComponent = notVisitedComponent
+          currentComponentIndex = notVisitedComponentIndex
+        end
+        destinationVisited = destinationVisited or notVisitedComponent == destinationComponent
+      end
+
+      -- We have already reached the destination, no need to keep looking
+      if not destinationVisited then break end
+
+      -- Remove the component we are visiting now from the table of not visited components
+      table.remove(notVisited, currentComponentIndex)
+
+      -- For each connection, see if the distance would be lower this way and adjust the values appropriately if so
+      for connectionComponent in pairs(graph[currentComponent]) do
+        if not (forbiddenConnection[1] == currentComponent and forbiddenConnection[2] == connectionComponent)
+          and not (forbiddenConnection[1] == connectionComponent and forbiddenConnection[2] == currentComponent)
+        then
+          local isNotVisited = false
+          for _, notVisitedComponent in ipairs(notVisited) do
+            if notVisitedComponent == connectionComponent then
+              isNotVisited = true
+              break
+            end
+          end
+
+          if isNotVisited then
+            local candidateDistance = distances[currentComponent] + 1
+            if candidateDistance < distances[connectionComponent] then
+              distances[connectionComponent] = candidateDistance
+            end
+          end
+        end
+      end
+    end
+  end
+
+  dijkstra_me_this(mandatoryNextComponent, startComponent, { mandatoryNextComponent, startComponent })
+  return distances[startComponent]
+end
+
 local function read_components(lines)
   local componentsSet = {}
-  local connections = {}
+  local connectionsSet = {}
   local graph = {}
 
   for _, line in ipairs(lines) do
@@ -14,21 +72,12 @@ local function read_components(lines)
     for connectedComponentName in componentConnections:gmatch("%w+") do
       componentsSet[connectedComponentName] = connectedComponentName
 
-      local connectionAlreadyExists = false
-      for _, connection in ipairs(connections) do
-        if (connection[1] == componentName and connection[2] == connectedComponentName) 
-          or (connection[1] == connectedComponentName and connection[2] == componentName)
-        then
-          connectionAlreadyExists = true
-          break
-        end
-      end
-      if not connectionAlreadyExists then
-        if componentName < connectedComponentName then
-          connections[#connections + 1] = { componentName, connectedComponentName }
-        else
-          connections[#connections + 1] = { connectedComponentName, componentName }
-        end
+      local connection = { componentName, connectedComponentName }
+      if connectedComponentName < componentName then connection = { connectedComponentName, componentName } end
+
+      local connectionName = connection[1] .. "|" .. connection[2]
+      if connectionsSet[connectionName] == nil then
+        connectionsSet[connectionName] = connection
       end
 
       if graph[componentName] == nil then graph[componentName] = {} end
@@ -43,13 +92,27 @@ local function read_components(lines)
     components[#components + 1] = component
   end
 
-  table.sort(components)
-  table.sort(connections, function (a, b) return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2]) end)
+  local connections = {}
+  for _, connection in pairs(connectionsSet) do
+    -- For each connection, find how difficult it is to get back to the initial component
+    local firstRouteLength = find_length_of_fastest_route_to_self(graph, connection[1], connection[2])
+    local secondRouteLength = find_length_of_fastest_route_to_self(graph, connection[2], connection[1])
+    local routeLength = math.min(firstRouteLength, secondRouteLength)
+    connections[#connections + 1] = { connection[1], connection[2], routeLength }
+  end
+
+  -- Make sure we first try disconnecting the connections where the path to return to the initial component is longer.
+  -- This way, the recursion we'll do later to find the right cables to disconnect will get to the result much faster.
+  -- This is still extremely slow because the loop used above takes a long time with the real input. And while I could
+  -- optimise quite a few things, this is never going to be very performant anyway – I'm sure I am missing some cool
+  -- trick or logic. But I am quite sick right now, and as usual, a star is a star, so I cannot be bothered to do things
+  -- better here, or even to clean up this mess. This works if you give it some time, which is good enough in my book!
+  table.sort(connections, function (a, b) return a[3] > b[3] end)
 
   return components, connections, graph
 end
 
-local function get_group_hashes(components, graph)
+local function reach_components(graph, startComponent)
   local function reach_components_recursively(component, reached)
     if reached[component] ~= nil then return reached end
 
@@ -61,9 +124,13 @@ local function get_group_hashes(components, graph)
     return reached
   end
 
+  return reach_components_recursively(startComponent, {})
+end
+
+local function get_group_hashes(components, graph)
   local reachedHashes = {}
   for startComponent in pairs(graph) do
-    local reachedComponents = reach_components_recursively(startComponent, {})
+    local reachedComponents = reach_components(graph, startComponent)
 
     local reachedHash = ""
     for _, component in ipairs(components) do
