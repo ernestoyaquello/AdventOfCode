@@ -24,4 +24,4 @@ P.S. I'm not trying to write beautiful, elegant code that is clean and performan
 ## [2023](2023)
 
 * Language: Lua
-* Result: ⏳
+* Result: 50/50 ✅
