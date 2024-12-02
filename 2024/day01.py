@@ -4,35 +4,25 @@ from collections import defaultdict
 PROBLEM_NUMBER = 1
 
 def calculate_total_distance(locations, other_locations):
-    total_distance = 0
-
-    for index in range(len(locations)):
-        location = locations[index]
-        other_location = other_locations[index]
-        total_distance += abs(location - other_location)
-
-    return total_distance
+    return sum(abs(loc - o_loc) for loc, o_loc in zip(locations, other_locations))
 
 def calculate_similarity_score(locations, other_locations):
-    similarity_score = 0
-
+    # Count the occurrences of each location and store it for efficiency (no need to count them ever again later)
     location_to_occurrences = defaultdict(int)
     for location in locations:
         location_to_occurrences[location] += 1
 
-    for other_location in other_locations:
-        if other_location in location_to_occurrences:
-            occurrences = location_to_occurrences[other_location]
-            similarity_score += other_location * occurrences
+    # Calculate the similarity score using the occurrence counts found above
+    return sum(o_loc * location_to_occurrences[o_loc] for o_loc in other_locations)
 
-    return similarity_score
-
+# Get inputs
 lines = input.read_lines(problem_number = PROBLEM_NUMBER)
 locations = sorted([int(line.split()[0]) for line in lines])
 other_locations = sorted([int(line.split()[1]) for line in lines])
 
+# Calculate results
 result_part_one = calculate_total_distance(locations, other_locations)
 result_part_two = calculate_similarity_score(locations, other_locations)
 
 print("Part 1: " + str(result_part_one))
-print("Part 1: " + str(result_part_two))
+print("Part 2: " + str(result_part_two))
