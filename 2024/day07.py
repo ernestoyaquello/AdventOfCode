@@ -8,42 +8,35 @@ def sum_valid_equations(allow_concatenation):
     lines = input.read_lines(problem_number = PROBLEM_NUMBER)
     equations = [(int(line.split(": ")[0]), [int(n) for n in line.split(": ")[1].split()]) for line in lines]
     for result, numbers in equations:
-        total += result if sum_valid_results(result, numbers, allow_concatenation, []) else 0
+        total += result if sum_valid_results(result, numbers[0], numbers[1:], allow_concatenation) else 0
 
     return total
 
-def sum_valid_results(desired_result, numbers, allow_concatenation, current_operators):
-    # If the current result is already bigger than the one we expect, we can stop, as we know it will only get bigger
-    if calculate_result(numbers, current_operators) > desired_result:
-        return False
-
-    # If we have filled in all the operators, we can check if the result is the one we expect (base case)
-    if len(current_operators) == len(numbers) - 1:
-        return calculate_result(numbers, current_operators) == desired_result
-
-    # Otherwise, try filling the gaps with each one of the operators
-    valid_operators = ["+", "*", "||"] if allow_concatenation else ["+", "*"]
+def sum_valid_results(desired_result, current_result, next_numbers, allow_concatenation):
+    valid_operators = ["||", "*", "+"] if allow_concatenation else ["*", "+"]
     for operator in valid_operators:
-        current_operators.append(operator)
-        if sum_valid_results(desired_result, numbers, allow_concatenation, current_operators):
+        next_number = next_numbers.pop(0)
+
+        # Calculate the next result in the equation by applying the operator
+        next_result = current_result
+        if operator == "||":
+            next_result = int(str(next_result) + str(next_number))
+        elif operator == "*":
+            next_result *= next_number
+        elif operator == "+":
+            next_result += next_number
+
+        if len(next_numbers) == 0:
+            # No more numbers to process, so check if the result is the desired one
+            if next_result == desired_result:
+                return True
+        elif next_result < desired_result and sum_valid_results(desired_result, next_result, next_numbers, allow_concatenation):
+            # A valid way to get to the result was found (the comparison uses "<" because it assumes no zeroes)
             return True
-        current_operators.pop()
+
+        next_numbers.insert(0, next_number)
 
     return False
-
-def calculate_result(numbers, operators):
-    left_number = numbers[0]
-    result = left_number
-    for index in range(min(len(operators), len(numbers) - 1)):
-        operator = operators[index]
-        right_number = numbers[index + 1]
-        if operator == "+":
-            result += right_number
-        elif operator == "*":
-            result *= right_number
-        elif operator == "||":
-            result = int(str(result) + str(right_number))
-    return result
 
 print("Part 1: " + str(sum_valid_equations(allow_concatenation = False)))
 print("Part 2: " + str(sum_valid_equations(allow_concatenation = True)))
