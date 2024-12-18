@@ -83,25 +83,31 @@ def find_correct_register_a():
                 candidate_aes[index].add((shifted_candidate_a << shift, shifted_mask << shift))
 
     # Get rid of those values that cannot be combined with at least one value of every other iteration,
-    # as that means they are unusable (the final A will be a combination of one value from each iteration)
-    for index, index_candidate_aes in candidate_aes.items():
-        filtered_index_candidate_aes = index_candidate_aes.copy()
-        for candidate_a, candidate_a_mask in index_candidate_aes:
-            for other_index in range(0, len(original_computer_state["instructions"])):
-                if index != other_index:
-                    has_match = False
-                    for other_candidate_a, other_candidate_a_mask in candidate_aes[other_index]:
-                        combined_candidate_a = candidate_a | other_candidate_a
-                        if (combined_candidate_a & candidate_a_mask) == candidate_a and (combined_candidate_a & other_candidate_a_mask) == other_candidate_a:
-                            has_match = True
+    # as that means they are unusable (the final A will be a combination of one value from each iteration).
+    # Keep going with the filtering until no more values can be removed, that way we reduce the amount of
+    # combinations we need to try out to find the correct A value, which greatly increases performance.
+    filter_candidates = True
+    while filter_candidates:
+        filter_candidates = False
+        for index, index_candidate_aes in candidate_aes.items():
+            filtered_index_candidate_aes = index_candidate_aes.copy()
+            for candidate_a, candidate_a_mask in index_candidate_aes:
+                for other_index in range(0, len(original_computer_state["instructions"])):
+                    if index != other_index:
+                        has_match = False
+                        for other_candidate_a, other_candidate_a_mask in candidate_aes[other_index]:
+                            combined_candidate_a = candidate_a | other_candidate_a
+                            if (combined_candidate_a & candidate_a_mask) == candidate_a and (combined_candidate_a & other_candidate_a_mask) == other_candidate_a:
+                                has_match = True
+                                break
+                        if not has_match:
+                            filtered_index_candidate_aes.remove((candidate_a, candidate_a_mask))
+                            filter_candidates = True
                             break
-                    if not has_match:
-                        filtered_index_candidate_aes.remove((candidate_a, candidate_a_mask))
-                        break
-        candidate_aes[index] = filtered_index_candidate_aes
+            candidate_aes[index] = filtered_index_candidate_aes
 
     # Figure out what output we are looking for (the output must match the instructions given as an input),
-    # create all the possible combinations of A values, and try them out until one gives us the desired output
+    # create all the possible combinations of A values, and try them out until one gives us the desired output.
     desired_output = ",".join(str(instruction) for instruction in original_computer_state["instructions"])
     combined_candidate_aes = combine_candidate_aes(candidate_aes, len(original_computer_state["instructions"]) - 1)
     for candidate_a, _ in sorted(combined_candidate_aes):
@@ -117,7 +123,7 @@ def find_correct_register_a():
         if execute_instructions(next_computer_state, desired_output) == desired_output:
             return candidate_a
 
-    # This should never happen, but if it does, we'll know that the solution is incorrect
+    # This should never happen, but if it does, we'll know that the code is incorrect
     return None
 
 def combine_candidate_aes(candidate_aes, index):
