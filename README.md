@@ -25,3 +25,8 @@ P.S. I'm not trying to write beautiful, elegant code that is clean and performan
 
 * Language: Lua
 * Result: 50/50 ✅
+
+## [2024](2024)
+
+* Language: Python
+* Result: 50/50 ✅
